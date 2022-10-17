@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
+﻿
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TodoApi.Models;
@@ -20,6 +16,12 @@ namespace TodoApi.Controllers
             _context = context;
         }
 
+        /// <summary>
+        /// Returns the data corresponding to all ids saved.
+        /// </summary>
+        /// <returns>
+        /// All entries will be returned
+        /// </returns>
         // GET: api/TodoItems
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TodoItemDTO>>> GetTodoItems()
@@ -29,9 +31,18 @@ namespace TodoApi.Controllers
                    .ToListAsync();
         }
 
-        // GET: api/TodoItems/5
+        /// <summary>
+        /// Returns the data corresponding to id# no.
+        /// </summary>
+        /// <param name="id">
+        /// User choses for which ID the data would be returned
+        /// </param>
+        /// <returns>
+        /// Either the data for the ID will be returned or a "not found" error will be returned.
+        /// </returns>
         [HttpGet("{id}")]
-        public async Task<ActionResult<TodoItem>> GetTodoItem(long id)
+
+        public async Task<ActionResult<TodoItemDTO>> GetTodoItem(long id)
         {
             var todoItem = await _context.TodoItems.FindAsync(id);
 
@@ -40,57 +51,93 @@ namespace TodoApi.Controllers
                 return NotFound();
             }
 
-            return todoItem;
+            return ItemToDTO(todoItem);
         }
+
+
+        /// <summary>
+        /// Using PUT, the data corresponding to id# no will be replaced with new data
+        /// </summary>
+        /// <param name="id">
+        /// User choses for which ID the data would be replaced
+        /// </param>
+        /// <returns>
+        /// Either the data for the ID will be replaced or a "not found" error will be returned.
+        /// </returns>
 
         // PUT: api/TodoItems/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutTodoItem(long id, TodoItem todoItem)
+        public async Task<IActionResult> UpdateTodoItem(long id, TodoItemDTO todoItemDTO)
         {
-            if (id != todoItem.Id)
+            if (id != todoItemDTO.Id)
             {
                 return BadRequest();
             }
 
-            _context.Entry(todoItem).State = EntityState.Modified;
+            var todoItem = await _context.TodoItems.FindAsync(id);
+            if (todoItem == null)
+            {
+                return NotFound();
+            }
+
+            todoItem.Name = todoItemDTO.Name;
+            todoItem.IsComplete = todoItemDTO.IsComplete;
 
             try
             {
                 await _context.SaveChangesAsync();
             }
-            catch (DbUpdateConcurrencyException)
+            catch (DbUpdateConcurrencyException) when (!TodoItemExists(id))
             {
-                if (!TodoItemExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return NotFound();
             }
 
             return NoContent();
         }
 
+        /// <summary>
+        /// Using POST, the data will be saved to a new assigned/next ID
+        /// </summary>
+        /// <returns>
+        /// The data is saved to the next assigned ID.
+        /// </returns>
         // POST: api/TodoItems
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<TodoItem>> PostTodoItem(TodoItem todoItem)
+        public async Task<ActionResult<TodoItemDTO>> CreateTodoItem(TodoItemDTO todoItemDTO)
         {
+            var todoItem = new TodoItem
+            {
+                IsComplete = todoItemDTO.IsComplete,
+                Name = todoItemDTO.Name
+            };
+
             _context.TodoItems.Add(todoItem);
             await _context.SaveChangesAsync();
 
-            //return CreatedAtAction("GetTodoItem", new { id = todoItem.Id }, todoItem);
-            return CreatedAtAction(nameof(GetTodoItem), new { id = todoItem.Id }, todoItem);
+            return CreatedAtAction(
+                nameof(GetTodoItem),
+                new { id = todoItem.Id },
+                ItemToDTO(todoItem));
         }
+
+        /// <summary>
+        /// Using DELETE, the data corresponding to id# will be deleted
+        /// </summary>
+        /// <param name="id">
+        /// User choses for which ID the data would be deleted
+        /// </param>
+        /// <returns>
+        /// Either the data for the ID will be deleted or a "not found" error will be returned.
+        /// </returns>
 
         // DELETE: api/TodoItems/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTodoItem(long id)
         {
             var todoItem = await _context.TodoItems.FindAsync(id);
+
             if (todoItem == null)
             {
                 return NotFound();
@@ -106,5 +153,14 @@ namespace TodoApi.Controllers
         {
             return _context.TodoItems.Any(e => e.Id == id);
         }
+
+
+        private static TodoItemDTO ItemToDTO(TodoItem todoItem) =>
+           new TodoItemDTO
+           {
+               Id = todoItem.Id,
+               Name = todoItem.Name,
+               IsComplete = todoItem.IsComplete
+           };
     }
 }
